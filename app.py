@@ -1,11 +1,17 @@
 import ee
+import json
 import streamlit as st
 import folium
 import requests
 import plotly.graph_objects as go
 from streamlit_folium import st_folium
 from folium.plugins import HeatMap
-ee.Initialize(project='coolmapai')
+service_account_info = dict(st.secrets["gcp_service_account"])
+credentials = ee.ServiceAccountCredentials(
+    service_account_info['client_email'],
+    key_data=json.dumps(service_account_info)
+)
+ee.Initialize(credentials)
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2917/2917995.png", width=80)
 st.sidebar.title("CoolMap AI")
 st.sidebar.write("---")
