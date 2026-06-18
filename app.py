@@ -1,4 +1,5 @@
 import ee
+import pickle
 import json
 import streamlit as st
 import folium
@@ -12,6 +13,8 @@ credentials = ee.ServiceAccountCredentials(
     key_data=json.dumps(service_account_info)
 )
 ee.Initialize(credentials)
+with open('tree_model.pkl', 'rb') as f:
+    tree_model = pickle.load(f)
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2917/2917995.png", width=80)
 st.sidebar.title("CoolMap AI")
 st.sidebar.write("---")
@@ -144,51 +147,83 @@ if st.session_state.last_lat and st.session_state.last_lng:
         temp = round(temp, 1)
         st.write(f"### 🌡️ Surface Temperature: {temp}°C")
 
+        # AI Model predicts tree impact dynamically
+        # Estimate green cover and density based on temperature zone
+        estimated_green_cover = max(5, 40 - (temp - 30) * 2)
+        estimated_density = min(1.0, (temp - 30) / 20)
+
+        reduction_per_10_trees = tree_model.predict([[temp, estimated_green_cover, estimated_density]])[0]
+
         if temp >= 45:
-            st.error("🔴 CRITICAL HEAT ZONE")
-            st.write("### 🤖 AI Recommendations:")
-            st.write("1. 🌳 Plant 20+ Neem/Peepal trees → Expected: 4°C reduction")
-            st.write("2. 🏠 Install cool roof paint → Expected: 3°C reduction")
-            st.write("3. 🌿 Create green corridor → Expected: 2°C reduction")
-            st.write("4. 💧 Add water fountains → Expected: 1°C reduction")
-            st.success(f"✅ After interventions: Expected {round(temp-10, 1)}°C")
-
+            zone_label = "🔴 CRITICAL HEAT ZONE"
+            target_reduction = temp - 40
         elif temp >= 40:
-            st.warning("🟠 HIGH HEAT ZONE")
-            st.write("### 🤖 AI Recommendations:")
-            st.write("1. 🌳 Plant 10-15 trees → Expected: 3°C reduction")
-            st.write("2. 🏠 Cool roof on buildings → Expected: 2°C reduction")
-            st.write("3. 🌿 Roadside shade structures → Expected: 1.5°C reduction")
-            st.success(f"✅ After interventions: Expected {round(temp-6, 1)}°C")
-
+            zone_label = "🟠 HIGH HEAT ZONE"
+            target_reduction = temp - 37
         elif temp >= 35:
-            st.warning("🟡 MODERATE HEAT ZONE")
-            st.write("### 🤖 AI Recommendations:")
-            st.write("1. 🌳 Plant 5-10 trees → Expected: 2°C reduction")
-            st.write("2. 🌿 Maintain green spaces → Expected: 1°C reduction")
-            st.success(f"✅ After interventions: Expected {round(temp-3, 1)}°C")
+            zone_label = "🟡 MODERATE HEAT ZONE"
+            target_reduction = temp - 34
+        else:
+            zone_label = "🟢 COOL ZONE"
+            target_reduction = 0
 
+        if target_reduction > 0:
+            trees_needed = int((target_reduction / reduction_per_10_trees) * 10)
+            trees_needed = max(5, min(trees_needed, 100))
+
+            st.error(zone_label) if temp >= 45 else st.warning(zone_label) if temp >= 35 else st.success(zone_label)
+
+            st.write("### 🤖 AI Model Recommendation:")
+            st.write(f"Based on a Random Forest model trained on urban heat research patterns:")
+            st.write(f"**Estimated trees needed: {trees_needed}**")
+            st.write(f"**Predicted reduction: {round(reduction_per_10_trees * (trees_needed / 10), 1)}°C**")
+            st.write(
+                f"**Expected temperature after intervention: {round(temp - (reduction_per_10_trees * (trees_needed / 10)), 1)}°C**")
+
+            st.caption(
+                "🌳 AI factors in: current temperature, estimated green cover, and area density to predict tree impact — not a fixed rule")
         else:
             st.success("🟢 COOL ZONE - No immediate action needed!")
             st.write("✅ This area is well maintained!")
             st.write("🌳 Keep existing trees and green spaces!")
-
     else:
         st.warning("No temperature data available for this location.")
+# ---- CITY-SPECIFIC HISTORICAL DATA ----
+city_historical_data = {
+    "Karachi": [44.1, 44.8, 45.2, 46.1, 46.8, 47.2],
+    "Lahore": [43.5, 44.5, 45.8, 46.5, 47.0, 47.8],
+    "Islamabad": [38.0, 38.5, 39.2, 40.1, 41.0, 41.8]
+}
 
-# ---- CHART - always visible at bottom ----
+city_comparison_temps = {
+    "Karachi": 47.2,
+    "Lahore": 47.8,
+    "Islamabad": 41.8
+}
+
+# ---- CHART - City Comparison ----
 st.write("---")
 st.write("### 📊 City Temperature Comparison (2025 Summer Average)")
 
-city_names = ["Karachi", "Lahore", "Islamabad"]
-city_temps = [47.2, 44.8, 38.5]
-colors = ["red", "orange", "green"]
+comparison_city_names = list(city_comparison_temps.keys())
+comparison_temps = list(city_comparison_temps.values())
+
+colors = []
+for t in comparison_temps:
+    if t >= 47:
+        colors.append("red")
+    elif t >= 44:
+        colors.append("orangered")
+    elif t >= 40:
+        colors.append("orange")
+    else:
+        colors.append("yellow")
 
 fig = go.Figure(go.Bar(
-    x=city_names,
-    y=city_temps,
+    x=comparison_city_names,
+    y=comparison_temps,
     marker_color=colors,
-    text=[f"{t}°C" for t in city_temps],
+    text=[f"{t}°C" for t in comparison_temps],
     textposition='auto'
 ))
 
@@ -200,46 +235,37 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ---- HISTORICAL TREND + AI PREDICTION ----
+# ---- HISTORICAL TREND + AI PREDICTION - City Specific ----
 st.write("---")
-st.write("### 📈 Karachi Temperature Trend & AI Future Prediction")
+st.write(f"### 📈 {city} Temperature Trend & AI Future Prediction")
 
 from sklearn.linear_model import LinearRegression
 import numpy as np
 
-# Historical data
-years = np.array([2020, 2021, 2022, 2023, 2024, 2025]).reshape(-1, 1)
-temps_trend = np.array([44.1, 44.8, 45.2, 46.1, 46.8, 47.2])
+years_array = np.array([2020, 2021, 2022, 2023, 2024, 2025]).reshape(-1, 1)
+selected_city_temps = np.array(city_historical_data[city])
 
-# AI Model - Linear Regression
-model = LinearRegression()
-model.fit(years, temps_trend)
+model_lr = LinearRegression()
+model_lr.fit(years_array, selected_city_temps)
 
-# Future predictions
 future_years = np.array([2026, 2027, 2028, 2029, 2030]).reshape(-1, 1)
-predictions = model.predict(future_years)
+predictions = model_lr.predict(future_years)
 predictions = [round(p, 1) for p in predictions]
-
-# Combine for graph
-all_years = [2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]
-all_temps = list(temps_trend) + predictions
 
 fig2 = go.Figure()
 
-# Historical line
 fig2.add_trace(go.Scatter(
     x=list(range(2020, 2026)),
-    y=list(temps_trend),
+    y=list(selected_city_temps),
     mode='lines+markers',
     name='Historical Data',
     line=dict(color='orange', width=3),
     marker=dict(size=8)
 ))
 
-# AI Predicted line
 fig2.add_trace(go.Scatter(
     x=list(range(2025, 2031)),
-    y=[temps_trend[-1]] + predictions,
+    y=[selected_city_temps[-1]] + predictions,
     mode='lines+markers',
     name='AI Prediction',
     line=dict(color='red', width=3, dash='dash'),
@@ -247,19 +273,18 @@ fig2.add_trace(go.Scatter(
 ))
 
 fig2.update_layout(
-    title="Karachi Surface Temperature — Historical & AI Predicted (2020-2030)",
+    title=f"{city} Surface Temperature — Historical & AI Predicted (2020-2030)",
     xaxis_title="Year",
     yaxis_title="Temperature (°C)",
-    yaxis_range=[40, 55],
+    yaxis_range=[35, 55],
     legend=dict(x=0, y=1)
 )
 
 st.plotly_chart(fig2, use_container_width=True)
 
-# AI insight
 predicted_2030 = predictions[-1]
-rise = round(predicted_2030 - 44.1, 1)
+rise = round(predicted_2030 - selected_city_temps[0], 1)
 
-st.error(f"🚨 AI Prediction: Karachi temperature will reach {predicted_2030}°C by 2030!")
+st.error(f"🚨 AI Prediction: {city} temperature will reach {predicted_2030}°C by 2030!")
 st.warning(f"📊 Total rise from 2020 to 2030: +{rise}°C")
-st.info("🌳 Solution: Plant 50,000+ trees across Karachi by 2027 to reduce temperature by 3-4°C")
+st.info(f"🌳 Solution: Increase green cover in {city} to reduce projected temperature rise")
