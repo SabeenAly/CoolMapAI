@@ -15,6 +15,20 @@ credentials = ee.ServiceAccountCredentials(
 ee.Initialize(credentials)
 with open('tree_model.pkl', 'rb') as f:
     tree_model = pickle.load(f)
+    st.markdown("""
+<style>
+.main {
+    background-color: #0d1b1e;
+}
+h1, h2, h3 {
+    color: #2dd4a8;
+}
+.stButton button {
+    background-color: #2dd4a8;
+    color: #0d1b1e;
+}
+</style>
+""", unsafe_allow_html=True)
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2917/2917995.png", width=80)
 st.sidebar.title("CoolMap AI")
 st.sidebar.write("---")
