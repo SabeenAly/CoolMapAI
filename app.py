@@ -203,7 +203,7 @@ city_comparison_temps = {
 
 # ---- CHART - City Comparison ----
 st.write("---")
-st.write("### 📊 City Temperature Comparison (2025 Summer Average)")
+st.write("### 📊 City Temperature Comparison (2026 Summer Average)")
 
 comparison_city_names = list(city_comparison_temps.keys())
 comparison_temps = list(city_comparison_temps.values())
