@@ -52,7 +52,7 @@ st.sidebar.write("🛰️ NASA Landsat 8 Satellite")
 st.sidebar.write("🌍 Google Earth Engine")
 st.sidebar.write("---")
 st.sidebar.write("### 👩‍💻 Developed by:")
-st.sidebar.write("Sabeen Ali")
+st.sidebar.write("Shabeen Ali")
 st.sidebar.write("KASBIT University")
 st.sidebar.write("AI Project 2026")
 
