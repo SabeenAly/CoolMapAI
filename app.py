@@ -5,17 +5,24 @@ import streamlit as st
 import folium
 import requests
 import plotly.graph_objects as go
+import numpy as np
 from streamlit_folium import st_folium
-from folium.plugins import HeatMap
+from sklearn.linear_model import LinearRegression
+
+# ---- AUTHENTICATION ----
 service_account_info = dict(st.secrets["gcp_service_account"])
 credentials = ee.ServiceAccountCredentials(
     service_account_info['client_email'],
     key_data=json.dumps(service_account_info)
 )
 ee.Initialize(credentials)
+
+# ---- LOAD AI MODEL ----
 with open('tree_model.pkl', 'rb') as f:
     tree_model = pickle.load(f)
-    st.markdown("""
+
+# ---- CUSTOM STYLING ----
+st.markdown("""
 <style>
 .main {
     background-color: #0d1b1e;
@@ -29,6 +36,8 @@ h1, h2, h3 {
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ---- SIDEBAR ----
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2917/2917995.png", width=80)
 st.sidebar.title("CoolMap AI")
 st.sidebar.write("---")
@@ -43,12 +52,15 @@ st.sidebar.write("🛰️ NASA Landsat 8 Satellite")
 st.sidebar.write("🌍 Google Earth Engine")
 st.sidebar.write("---")
 st.sidebar.write("### 👩‍💻 Developed by:")
-st.sidebar.write("Shabeen Ali")
+st.sidebar.write("Sabeen Ali")
 st.sidebar.write("KASBIT University")
 st.sidebar.write("AI Project 2026")
+
+# ---- MAIN TITLE ----
 st.title("🌡️ CoolMap AI")
 st.subheader("AI-Powered Urban Heat Island Detection for Pakistan")
 
+# ---- CITY SELECTION ----
 city = st.selectbox("Select City", ["Karachi", "Lahore", "Islamabad"])
 
 cities = {
@@ -60,6 +72,7 @@ cities = {
 coords = cities[city]
 point = ee.Geometry.Point([coords[1], coords[0]])
 
+# ---- FETCH SATELLITE DATA ----
 image = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
     .filterDate('2025-04-01', '2025-09-30') \
     .filterBounds(point) \
@@ -88,11 +101,13 @@ vis_params = {
 map_id = thermal.getMapId(vis_params)
 tile_url = map_id['tile_fetcher'].url_format
 
+# ---- SESSION STATE ----
 if 'last_lat' not in st.session_state:
     st.session_state.last_lat = None
 if 'last_lng' not in st.session_state:
     st.session_state.last_lng = None
 
+# ---- BUILD MAP ----
 m = folium.Map(location=coords, zoom_start=11)
 
 folium.TileLayer(
@@ -108,7 +123,6 @@ folium.TileLayer(
 folium.LayerControl().add_to(m)
 folium.ClickForMarker(popup="📍 Selected").add_to(m)
 
-
 st.caption("🔵 Cool  🟢 Moderate  🟡 Warm  🟠 Hot  🔴 Very Hot")
 st.info("📍 Click any area on the map to get AI recommendations!")
 
@@ -120,10 +134,12 @@ map_data = st_folium(
     returned_objects=["last_clicked"]
 )
 
+# ---- SAVE CLICKED LOCATION ----
 if map_data and map_data.get('last_clicked'):
     st.session_state.last_lat = map_data['last_clicked']['lat']
     st.session_state.last_lng = map_data['last_clicked']['lng']
 
+# ---- SHOW RECOMMENDATIONS ----
 if st.session_state.last_lat and st.session_state.last_lng:
     lat = st.session_state.last_lat
     lng = st.session_state.last_lng
@@ -162,7 +178,6 @@ if st.session_state.last_lat and st.session_state.last_lng:
         st.write(f"### 🌡️ Surface Temperature: {temp}°C")
 
         # AI Model predicts tree impact dynamically
-        # Estimate green cover and density based on temperature zone
         estimated_green_cover = max(5, 40 - (temp - 30) * 2)
         estimated_density = min(1.0, (temp - 30) / 20)
 
@@ -186,27 +201,25 @@ if st.session_state.last_lat and st.session_state.last_lng:
             trees_needed = max(5, min(trees_needed, 100))
 
             if temp >= 45:
-    st.error(zone_label)
-elif temp >= 35:
-    st.warning(zone_label)
-else:
-    st.success(zone_label)
+                st.error(zone_label)
+            elif temp >= 35:
+                st.warning(zone_label)
+            else:
+                st.success(zone_label)
 
             st.write("### 🤖 AI Model Recommendation:")
-            st.write(f"Based on a Random Forest model trained on urban heat research patterns:")
+            st.write("Based on a Random Forest model trained on urban heat research patterns:")
             st.write(f"**Estimated trees needed: {trees_needed}**")
             st.write(f"**Predicted reduction: {round(reduction_per_10_trees * (trees_needed / 10), 1)}°C**")
-            st.write(
-                f"**Expected temperature after intervention: {round(temp - (reduction_per_10_trees * (trees_needed / 10)), 1)}°C**")
-
-            st.caption(
-                "🌳 AI factors in: current temperature, estimated green cover, and area density to predict tree impact — not a fixed rule")
+            st.write(f"**Expected temperature after intervention: {round(temp - (reduction_per_10_trees * (trees_needed / 10)), 1)}°C**")
+            st.caption("🌳 AI factors in: current temperature, estimated green cover, and area density to predict tree impact — not a fixed rule")
         else:
             st.success("🟢 COOL ZONE - No immediate action needed!")
             st.write("✅ This area is well maintained!")
             st.write("🌳 Keep existing trees and green spaces!")
     else:
         st.warning("No temperature data available for this location.")
+
 # ---- CITY-SPECIFIC HISTORICAL DATA ----
 city_historical_data = {
     "Karachi": [44.1, 44.8, 45.2, 46.1, 46.8, 47.2],
@@ -220,9 +233,9 @@ city_comparison_temps = {
     "Islamabad": 41.8
 }
 
-# ---- CHART - City Comparison ----
+# ---- CHART: CITY COMPARISON ----
 st.write("---")
-st.write("### 📊 City Temperature Comparison (2026 Summer Average)")
+st.write("### 📊 City Temperature Comparison (2025 Summer Average)")
 
 comparison_city_names = list(city_comparison_temps.keys())
 comparison_temps = list(city_comparison_temps.values())
@@ -254,12 +267,9 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ---- HISTORICAL TREND + AI PREDICTION - City Specific ----
+# ---- CHART: HISTORICAL TREND + AI PREDICTION ----
 st.write("---")
 st.write(f"### 📈 {city} Temperature Trend & AI Future Prediction")
-
-from sklearn.linear_model import LinearRegression
-import numpy as np
 
 years_array = np.array([2020, 2021, 2022, 2023, 2024, 2025]).reshape(-1, 1)
 selected_city_temps = np.array(city_historical_data[city])
