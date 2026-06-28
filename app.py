@@ -185,7 +185,12 @@ if st.session_state.last_lat and st.session_state.last_lng:
             trees_needed = int((target_reduction / reduction_per_10_trees) * 10)
             trees_needed = max(5, min(trees_needed, 100))
 
-            st.error(zone_label) if temp >= 45 else st.warning(zone_label) if temp >= 35 else st.success(zone_label)
+            if temp >= 45:
+    st.error(zone_label)
+elif temp >= 35:
+    st.warning(zone_label)
+else:
+    st.success(zone_label)
 
             st.write("### 🤖 AI Model Recommendation:")
             st.write(f"Based on a Random Forest model trained on urban heat research patterns:")
